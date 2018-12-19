@@ -4,9 +4,7 @@
  *************************************************************
 ]]
 local ngx = ngx
-local m_config = {
-    app_config = nil
-}
+local m_config = {}
 
 function m_config.initial(self)
     local run_env = ngx.ctx.app.run_env
@@ -19,19 +17,19 @@ function m_config.initial(self)
     elseif "prod" == run_env then
         suffix = "Prod"
     end
-    self.app_config = require(prefix .. suffix)
-    if not self.app_config then
+    ngx.ctx.app.env_config = require(prefix .. suffix)
+    if not ngx.ctx.app.env_config then
         error("application run env error")
     end
 end
 
 function m_config.get_config(self, key)
     if nil == key then
-        return self.app_config
+        return ngx.ctx.app.env_config
     else
-        return self.app_config[key]
+        return ngx.ctx.app.env_config[key]
     end
-    return {}
+    return nil
 end
 
 return m_config

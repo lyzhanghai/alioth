@@ -18,10 +18,6 @@ local ngx = ngx
 local error = error
 
 local alog = {
-    log_path = nil,
-    log_level = nil,
-    log_id = nil,
-    log_cutting = nil,
 }
 
 local LOG_LEVEL_FATAL = 0x01
@@ -41,47 +37,44 @@ local LOG_LEVEL_NAMES = {
 }
 
 function alog.get_log_id(self)
-    if self.log_id then
-        return self.log_id
+    if ngx.ctx.app.env_config.log.log_id then
+        return ngx.ctx.app.env_config.log.log_id
     end
     local now_time = ngx.req.start_time() * 1000
     local work_id = ngx.worker.pid()
     math.randomseed(tostring(now_time):reverse():sub(1,6))
     local random = math.random(1000, 9999)
     local log_id = now_time .. work_id .. random
-    self.log_id = log_id
+    ngx.ctx.app.env_config.log.log_id = log_id
     return log_id
 end
 
 local function log_level_check(log_level)
     for k, v in pairs(LOG_LEVEL_NAMES) do
         if v == log_level then
-            alog.log_level = k
+            ngx.ctx.app.env_config.log.log_level = k
             return true
         end
     end
     error("log level " .. log_level .. "error")
 end
 
-function alog.init_alog(self, log_config)
-    self.log_path = log_config.log_path or error("log path can not be nil")
-    self.log_cutting = log_config.log_cutting or "d"
-    self.log_id = self:get_log_id()
-    local log_level = log_config.log_level or error("log level can not be nil")
-    log_level_check(log_level)
+function alog.init_alog(self)
+    ngx.ctx.app.env_config.log.log_id = self:get_log_id()
+    log_level_check(ngx.ctx.app.env_config.log.log_level)
 end
 
 local function write_log(log_level, message, err_no)
-    if alog.log_level > log_level then
+    if ngx.ctx.app.env_config.log.log_level < log_level then
         return true
     end
-    local log_file = alog.log_path
+    local log_file = ngx.ctx.app.env_config.log.log_path
     local file_suffix = ""
     if log_level <= LOG_LEVEL_WARNING then
         file_suffix = file_suffix .. ".wf"
     end
     local cutting = ""
-    if alog.log_cutting == 'h' then
+    if ngx.ctx.app.env_config.log.log_cutting == 'h' then
         cutting = f_os_date("%Y%m%d%H")
     else
         cutting = f_os_date("%Y%m%d")
@@ -93,8 +86,8 @@ local function write_log(log_level, message, err_no)
     end
 
     local content = f_str_format("%s: %s err_no[%d] ip[%s] log_id[%s] uri[%s] %s\n",
-        LOG_LEVEL_NAMES[log_level] or "NONE", ngx.utctime, err_no, m_ip.get_client_ip(),
-            alog.log_id, v_ngx_var.request_uri, message
+        LOG_LEVEL_NAMES[log_level] or "NONE", ngx.utctime(), err_no, m_ip.get_client_ip(),
+            ngx.ctx.app.env_config.log.log_id, v_ngx_var.request_uri, message
     )
 
     local fh, err = f_io_open(log_file, "a")
